@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design System Workflow — Figma ↔ Claude ↔ Storybook</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: #2a2a3a;
+    --figma: #ff7262;
+    --claude: #cc785c;
+    --storybook: #ff4785;
+    --accent: #7c3aed;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --success: #22c55e;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,58,237,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,58,237,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    padding: 60px 0 40px;
+    text-align: center;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(124,58,237,0.15);
+    border: 1px solid rgba(124,58,237,0.3);
+    color: #a78bfa;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    padding: 4px 12px;
+    border-radius: 2px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+  }
+
+  h1 span.fig { color: var(--figma); }
+  h1 span.cl { color: var(--claude); }
+  h1 span.sb { color: var(--storybook); }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 16px;
+    font-weight: 400;
+    max-width: 500px;
+    margin: 0 auto 48px;
+    line-height: 1.6;
+  }
+
+  /* Flow diagram */
+  .flow-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 40px;
+    margin-bottom: 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .flow-diagram::before {
+    content: 'WORKFLOW OVERVIEW';
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+  }
+
+  .flow-nodes {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    align-items: center;
+    gap: 0;
+    margin-top: 8px;
+  }
+
+  .node {
+    background: var(--surface2);
+    border-radius: 4px;
+    padding: 24px 20px;
+    text-align: center;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .node:hover { transform: translateY(-3px); }
+  .node.figma { border: 1px solid rgba(255,114,98,0.4); }
+  .node.claude { border: 1px solid rgba(204,120,92,0.4); }
+  .node.storybook { border: 1px solid rgba(255,71,133,0.4); }
+  .node.figma:hover { box-shadow: 0 8px 32px rgba(255,114,98,0.2); }
+  .node.claude:hover { box-shadow: 0 8px 32px rgba(204,120,92,0.2); }
+  .node.storybook:hover { box-shadow: 0 8px 32px rgba(255,71,133,0.2); }
+
+  .node-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .node-name {
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .node.figma .node-name { color: var(--figma); }
+  .node.claude .node-name { color: var(--claude); }
+  .node.storybook .node-name { color: var(--storybook); }
+
+  .node-desc {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .arrow-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+  }
+
+  .arrow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .arrow-line {
+    width: 60px;
+    height: 1px;
+    position: relative;
+  }
+
+  .arrow-line.down { background: linear-gradient(90deg, var(--figma), var(--claude)); }
+  .arrow-line.up { background: linear-gradient(90deg, var(--claude), var(--storybook)); }
+  .arrow-line.both { background: linear-gradient(90deg, var(--storybook), var(--claude)); }
+
+  .arrow-line::after {
+    content: '▶';
+    position: absolute;
+    right: -6px;
+    top: -5px;
+    font-size: 8px;
+  }
+
+  .arrow-line.reverse::after { content: '◀'; right: auto; left: -6px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 4px;
+    border-radius: 4px;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .tab.active {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .tab[data-tab="figma-push"].active { color: var(--figma); }
+  .tab[data-tab="storybook-sync"].active { color: var(--storybook); }
+  .tab[data-tab="claude-bridge"].active { color: var(--claude); }
+  .tab[data-tab="setup"].active { color: #a78bfa; }
+
+  /* Content panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Steps */
+  .steps { display: flex; flex-direction: column; gap: 16px; }
+
+  .step {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 20px;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    transition: border-color 0.2s;
+    animation: slideIn 0.3s ease both;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .step:nth-child(1) { animation-delay: 0.05s; }
+  .step:nth-child(2) { animation-delay: 0.10s; }
+  .step:nth-child(3) { animation-delay: 0.15s; }
+  .step:nth-child(4) { animation-delay: 0.20s; }
+  .step:nth-child(5) { animation-delay: 0.25s; }
+  .step:nth-child(6) { animation-delay: 0.30s; }
+
+  .step:hover { border-color: rgba(124,58,237,0.3); }
+
+  .step-num {
+    width: 48px;
+    height: 48px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .step-num.fig { background: rgba(255,114,98,0.1); color: var(--figma); border: 1px solid rgba(255,114,98,0.2); }
+  .step-num.cl { background: rgba(204,120,92,0.1); color: var(--claude); border: 1px solid rgba(204,120,92,0.2); }
+  .step-num.sb { background: rgba(255,71,133,0.1); color: var(--storybook); border: 1px solid rgba(255,71,133,0.2); }
+  .step-num.pu { background: rgba(124,58,237,0.1); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
+
+  .step-content h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -0.3px;
+  }
+
+  .step-content p {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+    margin-bottom: 12px;
+  }
+
+  .code-block {
+    background: #0d0d15;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #a8a8c0;
+    line-height: 1.8;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .code-block .comment { color: #4a4a5a; }
+  .code-block .key { color: #ff9580; }
+  .code-block .val { color: #80ffa0; }
+  .code-block .str { color: #ffcc80; }
+  .code-block .kw { color: #bf80ff; }
+  .code-block .fn { color: #80ccff; }
+
+  .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .copy-btn:hover { color: var(--text); border-color: #4a4a5a; }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+  }
+
+  .tag.fig { background: rgba(255,114,98,0.1); color: var(--figma); border: 1px solid rgba(255,114,98,0.2); }
+  .tag.cl { background: rgba(204,120,92,0.1); color: var(--claude); border: 1px solid rgba(204,120,92,0.2); }
+  .tag.sb { background: rgba(255,71,133,0.1); color: var(--storybook); border: 1px solid rgba(255,71,133,0.2); }
+  .tag.pu { background: rgba(124,58,237,0.1); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
+
+  /* Prompt box */
+  .prompt-box {
+    background: rgba(204,120,92,0.06);
+    border: 1px solid rgba(204,120,92,0.2);
+    border-radius: 3px;
+    padding: 16px;
+    margin-top: 12px;
+  }
+
+  .prompt-box-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--claude);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .prompt-box p {
+    color: #c0b8b0;
+    font-size: 13px;
+    margin: 0;
+    line-height: 1.7;
+    font-style: italic;
+  }
+
+  /* Architecture overview */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 0;
+  }
+
+  .arch-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    animation: slideIn 0.3s ease both;
+  }
+
+  .arch-card:nth-child(1) { animation-delay: 0.05s; }
+  .arch-card:nth-child(2) { animation-delay: 0.10s; }
+  .arch-card:nth-child(3) { animation-delay: 0.15s; }
+  .arch-card:nth-child(4) { animation-delay: 0.20s; }
+
+  .arch-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.2px;
+  }
+
+  .arch-card ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .arch-card li {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.5;
+  }
+
+  .arch-card li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--border);
+  }
+
+  /* Bottom info strip */
+  .info-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 32px 0 60px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+
+  .info-item {
+    text-align: center;
+  }
+
+  .info-item .info-num {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .info-item:nth-child(1) .info-num { color: var(--figma); }
+  .info-item:nth-child(2) .info-num { color: var(--claude); }
+  .info-item:nth-child(3) .info-num { color: var(--storybook); }
+
+  .info-item p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 700px) {
+    .flow-nodes { grid-template-columns: 1fr; }
+    .arrow-group { transform: rotate(90deg); }
+    .arch-grid { grid-template-columns: 1fr; }
+    .info-strip { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="badge">⬡ design system automation</div>
+    <h1>
+      <span class="fig">Figma</span> ↔ <span class="cl">Claude</span> ↔ <span class="sb">Storybook</span>
+    </h1>
+    <p class="subtitle">A bidirectional workflow for maintaining a living design system, powered by Claude as the intelligent bridge.</p>
+  </header>
+
+  <!-- Flow Diagram -->
+  <div class="flow-diagram">
+    <div class="flow-nodes">
+      <div class="node figma">
+        <span class="node-icon">🎨</span>
+        <div class="node-name">Figma</div>
+        <div class="node-desc">Design source<br>& token origin</div>
+      </div>
+
+      <div class="arrow-group">
+        <div class="arrow">
+          <div class="arrow-line down"></div>
+          <span>push</span>
+        </div>
+        <div class="arrow" style="flex-direction: row-reverse;">
+          <div class="arrow-line both reverse"></div>
+          <span>sync</span>
+        </div>
+      </div>
+
+      <div class="node claude">
+        <span class="node-icon">◈</span>
+        <div class="node-name">Claude</div>
+        <div class="node-desc">AI bridge &<br>code generator</div>
+      </div>
+
+      <div class="arrow-group">
+        <div class="arrow">
+          <div class="arrow-line up"></div>
+          <span>generate</span>
+        </div>
+        <div class="arrow" style="flex-direction: row-reverse;">
+          <div class="arrow-line both reverse"></div>
+          <span>diff</span>
+        </div>
+      </div>
+
+      <div class="node storybook">
+        <span class="node-icon">📖</span>
+        <div class="node-name">Storybook</div>
+        <div class="node-desc">Component library<br>& living docs</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="figma-push" onclick="switchTab('figma-push')">① Figma → Storybook</button>
+    <button class="tab" data-tab="storybook-sync" onclick="switchTab('storybook-sync')">② Storybook → Figma</button>
+    <button class="tab" data-tab="claude-bridge" onclick="switchTab('claude-bridge')">③ Claude Prompts</button>
+    <button class="tab" data-tab="setup" onclick="switchTab('setup')">⚙ Setup</button>
+  </div>
+
+  <!-- Panel 1: Figma → Storybook -->
+  <div class="panel active" id="panel-figma-push">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num fig">01</div>
+        <div class="step-content">
+          <h3>Export tokens from Figma via Variables REST API</h3>
+          <p>Use Figma's Variables API to export all design tokens (colors, spacing, typography, radius) as a structured JSON. Automate this with a script triggered on file publish.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment"># scripts/export-figma-tokens.sh</span>
+<span class="fn">curl</span> -H <span class="str">"X-Figma-Token: $FIGMA_TOKEN"</span> \
+  <span class="str">"https://api.figma.com/v1/files/$FILE_KEY/variables/local"</span> \
+  | <span class="fn">jq</span> <span class="str">'.'</span> > tokens/figma-raw.json
+
+<span class="comment"># Then transform to Style Dictionary format</span>
+<span class="fn">node</span> scripts/transform-tokens.js
+          </div>
+          <div class="tag-row">
+            <span class="tag fig">Figma API</span>
+            <span class="tag pu">Style Dictionary</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num cl">02</div>
+        <div class="step-content">
+          <h3>Claude reads Figma JSON → generates React components</h3>
+          <p>Pass the exported component specs and token JSON to Claude via the API. Claude generates typed React components, Storybook stories, and JSDoc comments in one shot.</p>
+          <div class="prompt-box">
+            <div class="prompt-box-label">◈ Claude prompt template</div>
+            <p>"Here is a Figma component spec (JSON) and our current design tokens. Generate a React component with TypeScript props, Tailwind/CSS-in-JS styling using the tokens, and a Storybook story file with Default, Hover, and Disabled variants."</p>
+          </div>
+          <div class="tag-row">
+            <span class="tag cl">Claude API</span>
+            <span class="tag sb">React + Stories</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num sb">03</div>
+        <div class="step-content">
+          <h3>Write generated files to your component library</h3>
+          <p>A Node.js script writes Claude's output to the correct paths in your repo, then opens a PR with the generated components for team review before merging to Storybook.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment">// scripts/write-component.js</span>
+<span class="kw">const</span> { component, story } = <span class="kw">await</span> <span class="fn">callClaude</span>(figmaSpec);
+
+<span class="fn">fs.writeFileSync</span>(
+  <span class="str">`src/components/<span class="fn">${name}</span>/<span class="fn">${name}</span>.tsx`</span>, component
+);
+<span class="fn">fs.writeFileSync</span>(
+  <span class="str">`src/components/<span class="fn">${name}</span>/<span class="fn">${name}</span>.stories.tsx`</span>, story
+);
+
+<span class="comment">// Open PR automatically</span>
+<span class="kw">await</span> <span class="fn">octokit.pulls.create</span>({
+  title: <span class="str">`feat: add <span class="fn">${name}</span> from Figma`</span>,
+  head: <span class="str">`design-system/<span class="fn">${name}</span>`</span>
+});
+          </div>
+          <div class="tag-row">
+            <span class="tag sb">Auto PR</span>
+            <span class="tag pu">GitHub Actions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 2: Storybook → Figma -->
+  <div class="panel" id="panel-storybook-sync">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num sb">01</div>
+        <div class="step-content">
+          <h3>Detect code changes in the component library</h3>
+          <p>A GitHub Action triggers on every merge to main. It diffs changed component files, extracts props, styles, and variant data from TypeScript source using ts-morph.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment"># .github/workflows/sync-to-figma.yml</span>
+<span class="key">on:</span>
+  <span class="key">push:</span>
+    <span class="key">branches:</span> [<span class="str">main</span>]
+    <span class="key">paths:</span> [<span class="str">'src/components/**'</span>]
+
+<span class="key">jobs:</span>
+  <span class="key">sync:</span>
+    <span class="key">runs-on:</span> <span class="val">ubuntu-latest</span>
+    <span class="key">steps:</span>
+      - <span class="key">name:</span> <span class="val">Extract component metadata</span>
+        <span class="key">run:</span> <span class="val">node scripts/extract-metadata.js</span>
+      - <span class="key">name:</span> <span class="val">Sync to Figma via Claude</span>
+        <span class="key">run:</span> <span class="val">node scripts/sync-figma.js</span>
+          </div>
+          <div class="tag-row">
+            <span class="tag pu">GitHub Actions</span>
+            <span class="tag sb">ts-morph</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num cl">02</div>
+        <div class="step-content">
+          <h3>Claude diffs component changes → generates Figma update plan</h3>
+          <p>Claude compares the previous and new component API. It produces a structured diff describing which Figma properties, variants, or tokens need to be updated, in a format the Figma Plugin API can consume.</p>
+          <div class="prompt-box">
+            <div class="prompt-box-label">◈ Claude prompt template</div>
+            <p>"Here is the previous version and new version of a React component. Identify all visual changes (new variants, prop renames, color token changes, spacing changes). Output a JSON action list for the Figma Plugin API to apply these changes to the matching Figma component."</p>
+          </div>
+          <div class="tag-row">
+            <span class="tag cl">Change detection</span>
+            <span class="tag fig">Figma actions JSON</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num fig">03</div>
+        <div class="step-content">
+          <h3>Apply updates via Figma Plugin API</h3>
+          <p>A lightweight Figma plugin runs in the background, polls for pending updates from your sync endpoint, and applies them: renaming variants, updating token bindings, and syncing component descriptions.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment">// figma-plugin/code.ts</span>
+<span class="kw">const</span> actions = <span class="kw">await</span> <span class="fn">fetchPendingUpdates</span>();
+
+<span class="kw">for</span> (<span class="kw">const</span> action <span class="kw">of</span> actions) {
+  <span class="kw">if</span> (action.type === <span class="str">'UPDATE_VARIANT'</span>) {
+    <span class="kw">const</span> node = <span class="fn">figma.getNodeById</span>(action.nodeId);
+    node.name = action.newName;
+  }
+  <span class="kw">if</span> (action.type === <span class="str">'UPDATE_TOKEN'</span>) {
+    <span class="fn">applyTokenBinding</span>(action.nodeId, action.token);
+  }
+}
+
+<span class="fn">figma.notify</span>(<span class="str">`✓ Synced ${actions.length} updates`</span>);
+          </div>
+          <div class="tag-row">
+            <span class="tag fig">Figma Plugin</span>
+            <span class="tag pu">Auto-sync</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 3: Claude Prompts -->
+  <div class="panel" id="panel-claude-bridge">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num cl">A</div>
+        <div class="step-content">
+          <h3>Prompt: Figma spec → Component + Stories</h3>
+          <p>The master prompt for generating a complete Storybook component from a Figma JSON export. Include your design token file for accurate styling.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+You are a design system engineer. Given the Figma component spec and 
+design tokens below, generate:
+
+1. A React TypeScript component (.tsx) using CSS Modules
+2. A Storybook 7 story file (.stories.tsx) with:
+   - Default story
+   - All variant combinations as stories
+   - ArgTypes mapped to Figma properties
+3. A README.md with usage examples
+
+Rules:
+- Use ONLY tokens from the provided tokens.json
+- Export named component + default export
+- Include JSDoc for all props
+- Stories must match Figma variant names exactly
+
+<span class="comment">## Figma Component Spec</span>
+{{FIGMA_COMPONENT_JSON}}
+
+<span class="comment">## Design Tokens</span>
+{{TOKENS_JSON}}
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num cl">B</div>
+        <div class="step-content">
+          <h3>Prompt: Detect & describe visual changes</h3>
+          <p>Use this to audit drift between Figma and Storybook — Claude will flag every mismatch and suggest corrections.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+Compare these two representations of the same component:
+
+FIGMA: {{FIGMA_COMPONENT_JSON}}
+STORYBOOK: {{COMPONENT_TSX}} + {{STORIES_TSX}}
+
+List all discrepancies as JSON:
+{
+  "mismatches": [
+    {
+      "type": "color|spacing|variant|prop",
+      "figmaValue": "...",
+      "codeValue": "...",
+      "location": "...",
+      "severity": "breaking|visual|minor",
+      "suggestedFix": "..."
+    }
+  ]
+}
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num cl">C</div>
+        <div class="step-content">
+          <h3>Prompt: Token migration</h3>
+          <p>When design tokens are renamed or restructured in Figma, use this to update all component files automatically.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+Our design tokens have been updated. Old → new mappings:
+{{TOKEN_MIGRATION_MAP}}
+
+Update the following component files to use new token names.
+Return each file separately with a summary of changes made.
+Do NOT change any logic or JSX structure — only update token
+references in styles.
+
+Files:
+{{COMPONENT_FILES}}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 4: Setup -->
+  <div class="panel" id="panel-setup">
+    <div class="arch-grid">
+      <div class="arch-card">
+        <h3><span style="color:var(--figma)">■</span> Figma Setup</h3>
+        <ul>
+          <li>Enable Dev Mode on your file</li>
+          <li>Set up Variables for all tokens</li>
+          <li>Use component naming: ComponentName/Variant</li>
+          <li>Install the sync plugin from your team</li>
+          <li>Create a Figma Personal Access Token</li>
+          <li>Store FILE_KEY from your Figma URL</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <h3><span style="color:var(--storybook)">■</span> Storybook Setup</h3>
+        <ul>
+          <li>Use Storybook 7+ with CSF3 format</li>
+          <li>Install @storybook/addon-designs</li>
+          <li>Link stories to Figma frames via parameters</li>
+          <li>Enable Chromatic for visual regression</li>
+          <li>Set up storybook-addon-figma-plugin</li>
+          <li>Use autodocs for generated docs</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <h3><span style="color:var(--claude)">■</span> Claude API Setup</h3>
+        <ul>
+          <li>Store ANTHROPIC_API_KEY in GitHub Secrets</li>
+          <li>Use claude-sonnet-4-20250514 model</li>
+          <li>Set max_tokens: 4096 for component gen</li>
+          <li>Add system prompt with your code style guide</li>
+          <li>Cache token JSON to reduce prompt size</li>
+          <li>Log all generated files for audit trail</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <h3><span style="color:#a78bfa">■</span> Repo Structure</h3>
+        <ul>
+          <li>tokens/ — Style Dictionary source</li>
+          <li>scripts/ — sync + generation scripts</li>
+          <li>src/components/ — generated components</li>
+          <li>.github/workflows/ — automation</li>
+          <li>figma-plugin/ — Figma sync plugin</li>
+          <li>docs/ — generated component docs</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="steps" style="margin-top: 16px;">
+      <div class="step">
+        <div class="step-num pu">1</div>
+        <div class="step-content">
+          <h3>Install dependencies</h3>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="fn">npm</span> install @anthropic-ai/sdk ts-morph style-dictionary \
+  @figma/plugin-typings @octokit/rest \
+  @storybook/addon-designs chromatic
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num pu">2</div>
+        <div class="step-content">
+          <h3>Configure environment variables</h3>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment"># .env.local</span>
+<span class="key">FIGMA_TOKEN</span>=<span class="str">figd_xxxx</span>
+<span class="key">FIGMA_FILE_KEY</span>=<span class="str">AbCdEfGh...</span>
+<span class="key">ANTHROPIC_API_KEY</span>=<span class="str">sk-ant-xxxx</span>
+<span class="key">GITHUB_TOKEN</span>=<span class="str">ghp_xxxx</span>
+<span class="key">CHROMATIC_PROJECT_TOKEN</span>=<span class="str">chroma_xxxx</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom stats -->
+  <div class="info-strip">
+    <div class="info-item">
+      <span class="info-num">3</span>
+      <p>Figma API calls<br>per component push</p>
+    </div>
+    <div class="info-item">
+      <span class="info-num">1</span>
+      <p>Claude API call<br>per component generated</p>
+    </div>
+    <div class="info-item">
+      <span class="info-num">∞</span>
+      <p>Bidirectional sync<br>on every design change</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+    document.getElementById(`panel-${name}`).classList.add('active');
+
+    // Re-trigger animations
+    document.querySelectorAll(`#panel-${name} .step, #panel-${name} .arch-card`).forEach((el, i) => {
+      el.style.animation = 'none';
+      el.offsetHeight;
+      el.style.animation = `slideIn 0.3s ease ${i * 0.07}s both`;
+    });
+  }
+
+  function copyCode(btn) {
+    const block = btn.parentElement;
+    const text = block.innerText.replace('COPY\n', '').trim();
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'COPIED';
+      setTimeout(() => btn.textContent = 'COPY', 1500);
+    });
+  }
+</script>
+</body>
+</html>
