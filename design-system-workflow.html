@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design System Workflow — Figma ↔ Claude ↔ Storybook</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: #2a2a3a;
+    --figma: #ff7262;
+    --claude: #e08c6a;
+    --storybook: #ff4785;
+    --accent: #7c3aed;
+    --text: #e8e8f0;
+    --muted: #9898b0;
+    --success: #22c55e;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(124,58,237,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,58,237,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    padding: 60px 0 40px;
+    text-align: center;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(124,58,237,0.15);
+    border: 1px solid rgba(124,58,237,0.3);
+    color: #a78bfa;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    padding: 5px 14px;
+    border-radius: 2px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+  }
+
+  h1 span.fig { color: var(--figma); }
+  h1 span.cl { color: var(--claude); }
+  h1 span.sb { color: var(--storybook); }
+
+  .subtitle {
+    color: #a8a8c4;
+    font-size: 16px;
+    font-weight: 400;
+    max-width: 500px;
+    margin: 0 auto 48px;
+    line-height: 1.6;
+  }
+
+  /* Flow diagram */
+  .flow-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 40px;
+    margin-bottom: 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .flow-diagram::before {
+    content: 'WORKFLOW OVERVIEW';
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #8888a8;
+    letter-spacing: 0.12em;
+  }
+
+  .flow-nodes {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    align-items: center;
+    gap: 0;
+    margin-top: 8px;
+  }
+
+  .node {
+    background: var(--surface2);
+    border-radius: 4px;
+    padding: 24px 20px;
+    text-align: center;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .node:hover { transform: translateY(-3px); }
+  .node.figma { border: 1px solid rgba(255,114,98,0.4); }
+  .node.claude { border: 1px solid rgba(204,120,92,0.4); }
+  .node.storybook { border: 1px solid rgba(255,71,133,0.4); }
+  .node.figma:hover { box-shadow: 0 8px 32px rgba(255,114,98,0.2); }
+  .node.claude:hover { box-shadow: 0 8px 32px rgba(204,120,92,0.2); }
+  .node.storybook:hover { box-shadow: 0 8px 32px rgba(255,71,133,0.2); }
+
+  .node-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .node-name {
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .node.figma .node-name { color: var(--figma); }
+  .node.claude .node-name { color: var(--claude); }
+  .node.storybook .node-name { color: var(--storybook); }
+
+  .node-desc {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .arrow-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+  }
+
+  .arrow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .arrow-line {
+    width: 60px;
+    height: 1px;
+    position: relative;
+  }
+
+  .arrow-line.down { background: linear-gradient(90deg, var(--figma), var(--claude)); }
+  .arrow-line.up { background: linear-gradient(90deg, var(--claude), var(--storybook)); }
+  .arrow-line.both { background: linear-gradient(90deg, var(--storybook), var(--claude)); }
+
+  .arrow-line::after {
+    content: '▶';
+    position: absolute;
+    right: -6px;
+    top: -5px;
+    font-size: 8px;
+  }
+
+  .arrow-line.reverse::after { content: '◀'; right: auto; left: -6px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 4px;
+    border-radius: 4px;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .tab.active {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .tab[data-tab="figma-push"].active { color: var(--figma); }
+  .tab[data-tab="storybook-sync"].active { color: var(--storybook); }
+  .tab[data-tab="claude-bridge"].active { color: var(--claude); }
+  .tab[data-tab="setup"].active { color: #a78bfa; }
+
+  /* Content panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Steps */
+  .steps { display: flex; flex-direction: column; gap: 16px; }
+
+  .step {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 20px;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    transition: border-color 0.2s;
+    animation: slideIn 0.3s ease both;
+  }
+
+
+  /* naming convention block — explicit vertical stacking */
+  .naming-block {
+    font-size: 14px !important;
+    line-height: 2.2 !important;
+    letter-spacing: 0.01em;
+  }
+
+
+  .guide-step-body code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #a78bfa;
+    background: rgba(124,58,237,0.12);
+    padding: 1px 6px;
+    border-radius: 2px;
+    border: 1px solid rgba(124,58,237,0.2);
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .step:nth-child(1) { animation-delay: 0.05s; }
+  .step:nth-child(2) { animation-delay: 0.10s; }
+  .step:nth-child(3) { animation-delay: 0.15s; }
+  .step:nth-child(4) { animation-delay: 0.20s; }
+  .step:nth-child(5) { animation-delay: 0.25s; }
+  .step:nth-child(6) { animation-delay: 0.30s; }
+
+  .step:hover { border-color: rgba(124,58,237,0.3); }
+
+  .step-num {
+    width: 48px;
+    height: 48px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .step-num.fig { background: rgba(255,114,98,0.1); color: var(--figma); border: 1px solid rgba(255,114,98,0.2); }
+  .step-num.cl { background: rgba(204,120,92,0.1); color: var(--claude); border: 1px solid rgba(204,120,92,0.2); }
+  .step-num.sb { background: rgba(255,71,133,0.1); color: var(--storybook); border: 1px solid rgba(255,71,133,0.2); }
+  .step-num.pu { background: rgba(124,58,237,0.1); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
+
+  .step-content h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+  }
+
+  .step-content p {
+    color: #a8a8c4;
+    font-size: 14px;
+    line-height: 1.75;
+    margin-bottom: 14px;
+  }
+
+  .code-block {
+    background: #0d0d15;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 40px 18px 18px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: #c8c8de;
+    line-height: 1.9;
+    overflow-x: auto;
+    white-space: pre;
+    position: relative;
+  }
+
+  .code-block .comment { color: #7a8799; }
+  .code-block .key { color: #ff9580; }
+  .code-block .val { color: #80ffa0; }
+  .code-block .str { color: #ffcc80; }
+  .code-block .kw { color: #c99dff; }
+  .code-block .fn { color: #80ccff; }
+
+  .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--surface2);
+    border: 1px solid #3a3a50;
+    color: #9898b0;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .copy-btn:hover { color: var(--text); border-color: #6060a0; background: #20202e; }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 2px;
+    letter-spacing: 0.04em;
+  }
+
+  .tag.fig { background: rgba(255,114,98,0.1); color: var(--figma); border: 1px solid rgba(255,114,98,0.2); }
+  .tag.cl { background: rgba(204,120,92,0.1); color: var(--claude); border: 1px solid rgba(204,120,92,0.2); }
+  .tag.sb { background: rgba(255,71,133,0.1); color: var(--storybook); border: 1px solid rgba(255,71,133,0.2); }
+  .tag.pu { background: rgba(124,58,237,0.1); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
+
+  /* Prompt box */
+  .prompt-box {
+    background: rgba(204,120,92,0.06);
+    border: 1px solid rgba(204,120,92,0.2);
+    border-radius: 3px;
+    padding: 16px;
+    margin-top: 12px;
+  }
+
+  .prompt-box-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--claude);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .prompt-box p {
+    color: #d0cac4;
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.8;
+    font-style: italic;
+  }
+
+  /* Architecture overview */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 0;
+  }
+
+  .arch-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    animation: slideIn 0.3s ease both;
+  }
+
+  .arch-card:nth-child(1) { animation-delay: 0.05s; }
+  .arch-card:nth-child(2) { animation-delay: 0.10s; }
+  .arch-card:nth-child(3) { animation-delay: 0.15s; }
+  .arch-card:nth-child(4) { animation-delay: 0.20s; }
+
+  .arch-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.2px;
+  }
+
+  .arch-card ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .arch-card li {
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--muted);
+    padding-left: 18px;
+    position: relative;
+    line-height: 1.65;
+  }
+
+  .arch-card li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #5050a0;
+  }
+
+  /* Bottom info strip */
+  .info-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 32px 0 60px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+
+  .info-item {
+    text-align: center;
+  }
+
+  .info-item .info-num {
+    font-family: var(--mono);
+    font-size: 32px;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .info-item:nth-child(1) .info-num { color: var(--figma); }
+  .info-item:nth-child(2) .info-num { color: var(--claude); }
+  .info-item:nth-child(3) .info-num { color: var(--storybook); }
+
+  .info-item p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Site nav ─────────────────────────────────── */
+  .site-nav {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 48px;
+  }
+
+  .site-nav a {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 7px 18px;
+    border-radius: 2px;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+
+  .site-nav a:hover,
+  .site-nav a.active {
+    background: var(--surface2);
+    color: var(--text);
+    border-color: #4a4a5a;
+  }
+
+  .site-nav a.active { color: #a78bfa; border-color: rgba(124,58,237,0.4); }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+
+  /* ── Folder tree visual ────────────────────────── */
+  .folder-tree {
+    background: #0d0d15;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 16px 18px;
+    margin: 12px 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .folder-tree-row {
+    display: grid;
+    grid-template-columns: 22px 200px 1fr;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .folder-tree-row.indent1 {
+    padding-left: 20px;
+  }
+
+  .ft-icon { font-size: 14px; }
+
+  .ft-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: #a78bfa;
+    white-space: nowrap;
+  }
+
+  .ft-desc {
+    font-family: var(--sans);
+    font-size: 12px;
+    color: #8888a8;
+    line-height: 1.4;
+  }
+
+  /* ── OS tabs ───────────────────────────────────── */
+  .os-tabs {
+    display: flex;
+    gap: 2px;
+    margin: 14px 0 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 3px;
+    border-radius: 3px;
+    width: fit-content;
+  }
+
+  .os-tab {
+    padding: 5px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    color: #8888a8;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+
+  .os-tab.active {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .os-panel { display: none; margin-top: 12px; }
+  .os-panel.active { display: block; }
+
+  .os-panel p { margin-top: 0 !important; }
+
+  kbd {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid #4a4a6a;
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 1px 6px;
+    color: #c8c8de;
+    line-height: 1.6;
+  }
+
+  /* ── handoff callout variant ───────────────────── */
+  .callout.handoff { background: rgba(34,197,94,0.06); border-color: #22c55e; }
+  .callout.handoff .callout-label { color: #22c55e; }
+
+  /* ── Guide section ────────────────────────────── */
+  .guide-section { margin-bottom: 64px; }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .phase-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .phase-badge.p1 { background: rgba(124,58,237,0.15); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+  .phase-badge.p2 { background: rgba(255,114,98,0.12); color: var(--figma); border: 1px solid rgba(255,114,98,0.3); }
+  .phase-badge.p3 { background: rgba(255,71,133,0.12); color: var(--storybook); border: 1px solid rgba(255,71,133,0.3); }
+  .phase-badge.p4 { background: rgba(124,58,237,0.15); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+  .phase-badge.p5 { background: rgba(107,107,128,0.15); color: var(--muted); border: 1px solid rgba(107,107,128,0.3); }
+
+  .phase-title {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .phase-desc {
+    color: #a8a8c4;
+    font-size: 15px;
+    line-height: 1.75;
+    margin-bottom: 24px;
+    max-width: 720px;
+  }
+
+  /* sub-steps within guide */
+  .guide-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    animation: slideIn 0.3s ease both;
+  }
+
+  .guide-step-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+
+  .guide-step-header:hover { background: var(--surface2); }
+
+  .guide-step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .guide-step-num.fig { background: rgba(255,114,98,0.1); color: var(--figma); border: 1px solid rgba(255,114,98,0.25); }
+  .guide-step-num.cl  { background: rgba(204,120,92,0.1); color: var(--claude); border: 1px solid rgba(204,120,92,0.25); }
+  .guide-step-num.sb  { background: rgba(255,71,133,0.1); color: var(--storybook); border: 1px solid rgba(255,71,133,0.25); }
+  .guide-step-num.pu  { background: rgba(124,58,237,0.1); color: #a78bfa; border: 1px solid rgba(124,58,237,0.25); }
+  .guide-step-num.gr  { background: rgba(107,107,128,0.1); color: var(--muted); border: 1px solid rgba(107,107,128,0.25); }
+
+  .guide-step-meta { flex: 1; }
+  .guide-step-meta h3 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 3px; }
+  .guide-step-meta p  { font-size: 13px; color: #8888a8; font-family: var(--mono); }
+
+  .guide-step-chevron {
+    color: var(--muted);
+    font-size: 12px;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+
+  .guide-step.open .guide-step-chevron { transform: rotate(180deg); }
+
+  .guide-step-body {
+    display: none;
+    padding: 0 20px 20px 72px;
+    border-top: 1px solid var(--border);
+  }
+
+  .guide-step.open .guide-step-body { display: block; }
+
+  .guide-step-body p {
+    color: #a8a8c4;
+    font-size: 14px;
+    line-height: 1.8;
+    margin: 14px 0 12px;
+  }
+
+  .guide-step-body ul {
+    list-style: none;
+    margin: 8px 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .guide-step-body ul li {
+    font-size: 14px;
+    color: #a8a8c4;
+    padding-left: 20px;
+    position: relative;
+    line-height: 1.7;
+  }
+
+  .guide-step-body ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #5858a8;
+  }
+
+  /* callout boxes */
+  .callout {
+    border-radius: 3px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-left: 3px solid;
+  }
+
+  .callout.tip   { background: rgba(124,58,237,0.07); border-color: var(--accent); }
+  .callout.warn  { background: rgba(255,114,98,0.07); border-color: var(--figma); }
+  .callout.info  { background: rgba(204,120,92,0.07); border-color: var(--claude); }
+
+  .callout-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  .callout.tip  .callout-label { color: #a78bfa; }
+  .callout.warn .callout-label { color: var(--figma); }
+  .callout.info .callout-label { color: var(--claude); }
+
+  .callout p { color: #a8a8c4; font-size: 13px; line-height: 1.7; margin: 0 !important; }
+
+  /* guide code block (same style as main, just reused) */
+  .guide-step-body .code-block {
+    margin-top: 12px;
+  }
+
+  /* quick-ref table */
+  .qref-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 12px;
+  }
+
+  .qref-table th {
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    border: 1px solid var(--border);
+  }
+
+  .qref-table td {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    color: #a8a8c4;
+    vertical-align: top;
+    line-height: 1.6;
+    font-size: 13px;
+  }
+
+  .qref-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .qref-table td:first-child { font-family: var(--mono); font-size: 12px; color: #a78bfa; white-space: normal; word-break: break-word; }
+
+  /* progress tracker */
+  .progress-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .progress-phases {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .progress-phase {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+    cursor: pointer;
+  }
+
+  .progress-phase.done { background: #a78bfa; }
+
+  .progress-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #9898b0;
+    white-space: nowrap;
+  }
+
+  .progress-label span { color: #a78bfa; }
+
+  @media (max-width: 700px) {
+    .flow-nodes { grid-template-columns: 1fr; }
+    .arrow-group { transform: rotate(90deg); }
+    .arch-grid { grid-template-columns: 1fr; }
+    .info-strip { grid-template-columns: 1fr; }
+    .guide-step-body { padding-left: 20px; }
+    .progress-bar { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <nav class="site-nav">
+    <a href="#" class="active" onclick="switchView('overview', this)">Overview</a>
+    <a href="#" onclick="switchView('guide', this)">Step-by-Step Guide</a>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════ VIEW: OVERVIEW -->
+  <div class="view active" id="view-overview">
+
+  <header>
+    <div class="badge">⬡ design system automation</div>
+    <h1>
+      <span class="fig">Figma</span> ↔ <span class="cl">Claude</span> ↔ <span class="sb">Storybook</span>
+    </h1>
+    <p class="subtitle">A bidirectional workflow for maintaining a living design system, powered by Claude as the intelligent bridge.</p>
+  </header>
+
+  <!-- Flow Diagram -->
+  <div class="flow-diagram">
+    <div class="flow-nodes">
+      <div class="node figma">
+        <span class="node-icon">🎨</span>
+        <div class="node-name">Figma</div>
+        <div class="node-desc">Design source<br>& token origin</div>
+      </div>
+
+      <div class="arrow-group">
+        <div class="arrow">
+          <div class="arrow-line down"></div>
+          <span>push</span>
+        </div>
+        <div class="arrow" style="flex-direction: row-reverse;">
+          <div class="arrow-line both reverse"></div>
+          <span>sync</span>
+        </div>
+      </div>
+
+      <div class="node claude">
+        <span class="node-icon">◈</span>
+        <div class="node-name">Claude</div>
+        <div class="node-desc">AI bridge &<br>code generator</div>
+      </div>
+
+      <div class="arrow-group">
+        <div class="arrow">
+          <div class="arrow-line up"></div>
+          <span>generate</span>
+        </div>
+        <div class="arrow" style="flex-direction: row-reverse;">
+          <div class="arrow-line both reverse"></div>
+          <span>diff</span>
+        </div>
+      </div>
+
+      <div class="node storybook">
+        <span class="node-icon">📖</span>
+        <div class="node-name">Storybook</div>
+        <div class="node-desc">Component library<br>& living docs</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="figma-push" onclick="switchTab('figma-push')">① Figma → Storybook</button>
+    <button class="tab" data-tab="storybook-sync" onclick="switchTab('storybook-sync')">② Storybook → Figma</button>
+    <button class="tab" data-tab="claude-bridge" onclick="switchTab('claude-bridge')">③ Claude Prompts</button>
+    <button class="tab" data-tab="setup" onclick="switchTab('setup')">⚙ Setup</button>
+  </div>
+
+  <!-- Panel 1: Figma → Storybook -->
+  <div class="panel active" id="panel-figma-push">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num fig">01</div>
+        <div class="step-content">
+          <h3>Export tokens from Figma via Variables REST API</h3>
+          <p>Use Figma's Variables API to export all design tokens (colors, spacing, typography, radius) as a structured JSON. Automate this with a script triggered on file publish.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment"># scripts/export-figma-tokens.sh</span>
+<span class="fn">curl</span> -H <span class="str">"X-Figma-Token: $FIGMA_TOKEN"</span> \
+  <span class="str">"https://api.figma.com/v1/files/$FILE_KEY/variables/local"</span> \
+  | <span class="fn">jq</span> <span class="str">'.'</span> > tokens/figma-raw.json
+
+<span class="comment"># Then transform to Style Dictionary format</span>
+<span class="fn">node</span> scripts/transform-tokens.js
+          </div>
+          <div class="tag-row">
+            <span class="tag fig">Figma API</span>
+            <span class="tag pu">Style Dictionary</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num cl">02</div>
+        <div class="step-content">
+          <h3>Claude reads Figma JSON → generates React components</h3>
+          <p>Pass the exported component specs and token JSON to Claude via the API. Claude generates typed React components, Storybook stories, and JSDoc comments in one shot.</p>
+          <div class="prompt-box">
+            <div class="prompt-box-label">◈ Claude prompt template</div>
+            <p>"Here is a Figma component spec (JSON) and our current design tokens. Generate a React component with TypeScript props, Tailwind/CSS-in-JS styling using the tokens, and a Storybook story file with Default, Hover, and Disabled variants."</p>
+          </div>
+          <div class="tag-row">
+            <span class="tag cl">Claude API</span>
+            <span class="tag sb">React + Stories</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num sb">03</div>
+        <div class="step-content">
+          <h3>Write generated files to your component library</h3>
+          <p>A Node.js script writes Claude's output to the correct paths in your repo, then opens a PR with the generated components for team review before merging to Storybook.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment">// scripts/write-component.js</span>
+<span class="kw">const</span> { component, story } = <span class="kw">await</span> <span class="fn">callClaude</span>(figmaSpec);
+
+<span class="fn">fs.writeFileSync</span>(
+  <span class="str">`src/components/<span class="fn">${name}</span>/<span class="fn">${name}</span>.tsx`</span>, component
+);
+<span class="fn">fs.writeFileSync</span>(
+  <span class="str">`src/components/<span class="fn">${name}</span>/<span class="fn">${name}</span>.stories.tsx`</span>, story
+);
+
+<span class="comment">// Open PR automatically</span>
+<span class="kw">await</span> <span class="fn">octokit.pulls.create</span>({
+  title: <span class="str">`feat: add <span class="fn">${name}</span> from Figma`</span>,
+  head: <span class="str">`design-system/<span class="fn">${name}</span>`</span>
+});
+          </div>
+          <div class="tag-row">
+            <span class="tag sb">Auto PR</span>
+            <span class="tag pu">GitHub Actions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 2: Storybook → Figma -->
+  <div class="panel" id="panel-storybook-sync">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num sb">01</div>
+        <div class="step-content">
+          <h3>Detect code changes in the component library</h3>
+          <p>A GitHub Action triggers on every merge to main. It diffs changed component files, extracts props, styles, and variant data from TypeScript source using ts-morph.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment"># .github/workflows/sync-to-figma.yml</span>
+<span class="key">on:</span>
+  <span class="key">push:</span>
+    <span class="key">branches:</span> [<span class="str">main</span>]
+    <span class="key">paths:</span> [<span class="str">'src/components/**'</span>]
+
+<span class="key">jobs:</span>
+  <span class="key">sync:</span>
+    <span class="key">runs-on:</span> <span class="val">ubuntu-latest</span>
+    <span class="key">steps:</span>
+      - <span class="key">name:</span> <span class="val">Extract component metadata</span>
+        <span class="key">run:</span> <span class="val">node scripts/extract-metadata.js</span>
+      - <span class="key">name:</span> <span class="val">Sync to Figma via Claude</span>
+        <span class="key">run:</span> <span class="val">node scripts/sync-figma.js</span>
+          </div>
+          <div class="tag-row">
+            <span class="tag pu">GitHub Actions</span>
+            <span class="tag sb">ts-morph</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num cl">02</div>
+        <div class="step-content">
+          <h3>Claude diffs component changes → generates Figma update plan</h3>
+          <p>Claude compares the previous and new component API. It produces a structured diff describing which Figma properties, variants, or tokens need to be updated, in a format the Figma Plugin API can consume.</p>
+          <div class="prompt-box">
+            <div class="prompt-box-label">◈ Claude prompt template</div>
+            <p>"Here is the previous version and new version of a React component. Identify all visual changes (new variants, prop renames, color token changes, spacing changes). Output a JSON action list for the Figma Plugin API to apply these changes to the matching Figma component."</p>
+          </div>
+          <div class="tag-row">
+            <span class="tag cl">Change detection</span>
+            <span class="tag fig">Figma actions JSON</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num fig">03</div>
+        <div class="step-content">
+          <h3>Apply updates via Figma Plugin API</h3>
+          <p>A lightweight Figma plugin runs in the background, polls for pending updates from your sync endpoint, and applies them: renaming variants, updating token bindings, and syncing component descriptions.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment">// figma-plugin/code.ts</span>
+<span class="kw">const</span> actions = <span class="kw">await</span> <span class="fn">fetchPendingUpdates</span>();
+
+<span class="kw">for</span> (<span class="kw">const</span> action <span class="kw">of</span> actions) {
+  <span class="kw">if</span> (action.type === <span class="str">'UPDATE_VARIANT'</span>) {
+    <span class="kw">const</span> node = <span class="fn">figma.getNodeById</span>(action.nodeId);
+    node.name = action.newName;
+  }
+  <span class="kw">if</span> (action.type === <span class="str">'UPDATE_TOKEN'</span>) {
+    <span class="fn">applyTokenBinding</span>(action.nodeId, action.token);
+  }
+}
+
+<span class="fn">figma.notify</span>(<span class="str">`✓ Synced ${actions.length} updates`</span>);
+          </div>
+          <div class="tag-row">
+            <span class="tag fig">Figma Plugin</span>
+            <span class="tag pu">Auto-sync</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 3: Claude Prompts -->
+  <div class="panel" id="panel-claude-bridge">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num cl">A</div>
+        <div class="step-content">
+          <h3>Prompt: Figma spec → Component + Stories</h3>
+          <p>The master prompt for generating a complete Storybook component from a Figma JSON export. Include your design token file for accurate styling.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+You are a design system engineer. Given the Figma component spec and 
+design tokens below, generate:
+
+1. A React TypeScript component (.tsx) using CSS Modules
+2. A Storybook 7 story file (.stories.tsx) with:
+   - Default story
+   - All variant combinations as stories
+   - ArgTypes mapped to Figma properties
+3. A README.md with usage examples
+
+Rules:
+- Use ONLY tokens from the provided tokens.json
+- Export named component + default export
+- Include JSDoc for all props
+- Stories must match Figma variant names exactly
+
+<span class="comment">## Figma Component Spec</span>
+{{FIGMA_COMPONENT_JSON}}
+
+<span class="comment">## Design Tokens</span>
+{{TOKENS_JSON}}
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num cl">B</div>
+        <div class="step-content">
+          <h3>Prompt: Detect & describe visual changes</h3>
+          <p>Use this to audit drift between Figma and Storybook — Claude will flag every mismatch and suggest corrections.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+Compare these two representations of the same component:
+
+FIGMA: {{FIGMA_COMPONENT_JSON}}
+STORYBOOK: {{COMPONENT_TSX}} + {{STORIES_TSX}}
+
+List all discrepancies as JSON:
+{
+  "mismatches": [
+    {
+      "type": "color|spacing|variant|prop",
+      "figmaValue": "...",
+      "codeValue": "...",
+      "location": "...",
+      "severity": "breaking|visual|minor",
+      "suggestedFix": "..."
+    }
+  ]
+}
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num cl">C</div>
+        <div class="step-content">
+          <h3>Prompt: Token migration</h3>
+          <p>When design tokens are renamed or restructured in Figma, use this to update all component files automatically.</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+Our design tokens have been updated. Old → new mappings:
+{{TOKEN_MIGRATION_MAP}}
+
+Update the following component files to use new token names.
+Return each file separately with a summary of changes made.
+Do NOT change any logic or JSX structure — only update token
+references in styles.
+
+Files:
+{{COMPONENT_FILES}}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 4: Setup -->
+  <div class="panel" id="panel-setup">
+    <div class="arch-grid">
+      <div class="arch-card">
+        <h3><span style="color:var(--figma)">■</span> Figma Setup</h3>
+        <ul>
+          <li>Enable Dev Mode on your file</li>
+          <li>Set up Variables for all tokens</li>
+          <li>Use component naming: ComponentName/Variant</li>
+          <li>Install the sync plugin from your team</li>
+          <li>Create a Figma Personal Access Token</li>
+          <li>Store FILE_KEY from your Figma URL</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <h3><span style="color:var(--storybook)">■</span> Storybook Setup</h3>
+        <ul>
+          <li>Use Storybook 7+ with CSF3 format</li>
+          <li>Install @storybook/addon-designs</li>
+          <li>Link stories to Figma frames via parameters</li>
+          <li>Enable Chromatic for visual regression</li>
+          <li>Set up storybook-addon-figma-plugin</li>
+          <li>Use autodocs for generated docs</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <h3><span style="color:var(--claude)">■</span> Claude API Setup</h3>
+        <ul>
+          <li>Store ANTHROPIC_API_KEY in GitHub Secrets</li>
+          <li>Use claude-sonnet-4-20250514 model</li>
+          <li>Set max_tokens: 4096 for component gen</li>
+          <li>Add system prompt with your code style guide</li>
+          <li>Cache token JSON to reduce prompt size</li>
+          <li>Log all generated files for audit trail</li>
+        </ul>
+      </div>
+      <div class="arch-card">
+        <h3><span style="color:#a78bfa">■</span> Repo Structure</h3>
+        <ul>
+          <li>tokens/ — Style Dictionary source</li>
+          <li>scripts/ — sync + generation scripts</li>
+          <li>src/components/ — generated components</li>
+          <li>.github/workflows/ — automation</li>
+          <li>figma-plugin/ — Figma sync plugin</li>
+          <li>docs/ — generated component docs</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="steps" style="margin-top: 16px;">
+      <div class="step">
+        <div class="step-num pu">1</div>
+        <div class="step-content">
+          <h3>Install dependencies</h3>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="fn">npm</span> install @anthropic-ai/sdk ts-morph style-dictionary \
+  @figma/plugin-typings @octokit/rest \
+  @storybook/addon-designs chromatic
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num pu">2</div>
+        <div class="step-content">
+          <h3>Configure environment variables</h3>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<span class="comment"># .env.local</span>
+<span class="key">FIGMA_TOKEN</span>=<span class="str">figd_xxxx</span>
+<span class="key">FIGMA_FILE_KEY</span>=<span class="str">AbCdEfGh...</span>
+<span class="key">ANTHROPIC_API_KEY</span>=<span class="str">sk-ant-xxxx</span>
+<span class="key">GITHUB_TOKEN</span>=<span class="str">ghp_xxxx</span>
+<span class="key">CHROMATIC_PROJECT_TOKEN</span>=<span class="str">chroma_xxxx</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom stats -->
+  <div class="info-strip">
+    <div class="info-item">
+      <span class="info-num">3</span>
+      <p>Figma API calls<br>per component push</p>
+    </div>
+    <div class="info-item">
+      <span class="info-num">1</span>
+      <p>Claude API call<br>per component generated</p>
+    </div>
+    <div class="info-item">
+      <span class="info-num">∞</span>
+      <p>Bidirectional sync<br>on every design change</p>
+    </div>
+  </div>
+  </div><!-- /view-overview -->
+
+  <!-- ═══════════════════════════════════════════════ VIEW: GUIDE -->
+  <div class="view" id="view-guide">
+
+    <header style="padding-bottom:24px;">
+      <div class="badge">⬡ step-by-step guide</div>
+      <h1 style="font-size:clamp(28px,4vw,52px);">Implementation <span class="cl">Guide</span></h1>
+      <p class="subtitle">Follow these 5 phases in order to go from zero to a fully automated bidirectional design system sync.</p>
+    </header>
+
+    <div class="callout handoff" style="margin-bottom: 32px;">
+      <div class="callout-label">👩‍🎨 For Designers &amp; Non-Developers</div>
+      <p>This guide is written for designers and anyone without a coding background. Each step clearly marks <strong>what you do</strong> vs. <strong>what your developer does</strong>. Steps that involve code are explained in plain language — you don't need to understand the code, just know what it accomplishes and when to hand it off. Look for the <strong>🤝 Developer handoff</strong> callouts to know when to loop someone in.</p>
+    </div>
+
+    <!-- Progress tracker -->
+    <div class="progress-bar">
+      <div class="progress-phases" id="progressPhases">
+        <div class="progress-phase" data-phase="1" onclick="scrollToPhase(1)" title="Phase 1 — Setup"></div>
+        <div class="progress-phase" data-phase="2" onclick="scrollToPhase(2)" title="Phase 2 — Figma → Storybook"></div>
+        <div class="progress-phase" data-phase="3" onclick="scrollToPhase(3)" title="Phase 3 — Storybook → Figma"></div>
+        <div class="progress-phase" data-phase="4" onclick="scrollToPhase(4)" title="Phase 4 — Automation"></div>
+        <div class="progress-phase" data-phase="5" onclick="scrollToPhase(5)" title="Phase 5 — Maintenance"></div>
+      </div>
+      <div class="progress-label"><span id="progressCount">0</span> / 13 steps completed</div>
+    </div>
+
+    <!-- ── PHASE 1 ──────────────────────────────────────────────── -->
+    <div class="guide-section" id="phase-1">
+      <div class="phase-header">
+        <span class="phase-badge p1">Phase 1</span>
+        <span class="phase-title">Setup &amp; Prerequisites</span>
+      </div>
+      <p class="phase-desc">Before building the sync pipeline, configure all three tools and set up your project structure. Complete every step here before proceeding.</p>
+
+      <div class="guide-step" id="gs-1-1">
+        <div class="guide-step-header" onclick="toggleStep('gs-1-1')">
+          <div class="guide-step-num pu">1.1</div>
+          <div class="guide-step-meta">
+            <h3>Prepare your Figma file</h3>
+            <p>Enable Dev Mode · Organize Variables · Standardize naming</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p><strong>Enable Dev Mode</strong> — open your Figma file, click the Figma logo (top-left), and select <em>Enable Dev Mode</em>. This unlocks the Variables API and code inspection.</p>
+          <p><strong>Organize Variables as tokens.</strong> Create variable collections for each category:</p>
+          <ul>
+            <li>Color — brand, semantic, and state colors</li>
+            <li>Spacing — base-4 or base-8 scale (4, 8, 12, 16, 24, 32…)</li>
+            <li>Typography — font sizes, weights, line heights</li>
+            <li>Radius — border radius values</li>
+            <li>Shadow — elevation levels</li>
+          </ul>
+          <p><strong>Standardize component naming</strong> using the slash convention so Claude can map them to file paths:</p>
+          <div class="code-block naming-block"><span class="comment">// Component naming convention — one entry per line</span>
+Button/Primary/Default
+Button/Primary/Hover
+Button/Primary/Disabled
+Button/Secondary/Default
+Button/Secondary/Hover
+Input/Text/Default
+Input/Text/Error
+Input/Text/Focused</div>
+          <p><strong>Get your Figma credentials.</strong> Go to Account Settings → Personal Access Tokens. Create a token with Read scope. Copy your FILE_KEY from the URL:</p>
+          <div class="code-block"><span class="comment">https://www.figma.com/design/FILE_KEY/Your-File-Name
+                                    ^^^^^^^^^^^
+                                    Copy this part</span></div>
+          <div class="callout tip">
+            <div class="callout-label">💡 Tip</div>
+            <p>Store the FILE_KEY and token in a password manager now. You'll need them in every script in this guide.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-1-2">
+        <div class="guide-step-header" onclick="toggleStep('gs-1-2')">
+          <div class="guide-step-num pu">1.2</div>
+          <div class="guide-step-meta">
+            <h3>Set up your project folder</h3>
+            <p>Create folders on your computer · Ask a developer to run the install</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+
+          <div class="callout info">
+            <div class="callout-label">👋 Designer note</div>
+            <p>This step is about creating a project folder on your computer — like making a new folder on your Desktop, but with a specific internal structure. You'll do the folder creation yourself (Part A below). Then hand off to your developer for Part B, which installs the technical tools.</p>
+          </div>
+
+          <p><strong>Part A — Create the folders</strong> (you do this)</p>
+          <p>This is the folder structure you're building. Think of it like organizing a filing cabinet — each folder has a specific purpose:</p>
+
+          <div class="folder-tree">
+            <div class="folder-tree-row"><span class="ft-icon">📁</span><span class="ft-name">my-design-system</span><span class="ft-desc">Your project's root folder — name it anything you like</span></div>
+            <div class="folder-tree-row indent1"><span class="ft-icon">📁</span><span class="ft-name">src / components</span><span class="ft-desc">Where generated React components will live</span></div>
+            <div class="folder-tree-row indent1"><span class="ft-icon">📁</span><span class="ft-name">tokens</span><span class="ft-desc">Stores your exported design tokens from Figma</span></div>
+            <div class="folder-tree-row indent1"><span class="ft-icon">📁</span><span class="ft-name">scripts</span><span class="ft-desc">The automation scripts that connect everything</span></div>
+            <div class="folder-tree-row indent1"><span class="ft-icon">📁</span><span class="ft-name">figma-plugin</span><span class="ft-desc">Code for the Figma plugin that syncs changes back</span></div>
+            <div class="folder-tree-row indent1"><span class="ft-icon">📁</span><span class="ft-name">.github / workflows</span><span class="ft-desc">Automation rules that run on GitHub</span></div>
+          </div>
+
+          <p><strong>How to create the folders — pick your system:</strong></p>
+
+          <div class="os-tabs">
+            <button class="os-tab active" onclick="switchOS(this, 'mac-12')">Mac</button>
+            <button class="os-tab" onclick="switchOS(this, 'win-12')">Windows</button>
+            <button class="os-tab" onclick="switchOS(this, 'manual-12')">No Terminal</button>
+          </div>
+
+          <div class="os-panel active" id="mac-12">
+            <p>Open <strong>Terminal</strong> (press <kbd>⌘ Space</kbd>, type "Terminal", press Enter). Then paste this block and press Enter:</p>
+            <div class="code-block">mkdir -p my-design-system/src/components
+mkdir -p my-design-system/tokens
+mkdir -p my-design-system/scripts
+mkdir -p my-design-system/figma-plugin
+mkdir -p my-design-system/.github/workflows</div>
+            <p>You'll see a new folder called <code>my-design-system</code> in whatever directory your Terminal was open in (usually your home folder).</p>
+          </div>
+
+          <div class="os-panel" id="win-12">
+            <p>Open <strong>Command Prompt</strong> (press <kbd>Win</kbd>, type "cmd", press Enter). Then paste this block and press Enter:</p>
+            <div class="code-block">mkdir my-design-system\src\components
+mkdir my-design-system\tokens
+mkdir my-design-system\scripts
+mkdir my-design-system\figma-plugin
+mkdir my-design-system\.github\workflows</div>
+          </div>
+
+          <div class="os-panel" id="manual-12">
+            <p>No Terminal needed — use Finder (Mac) or File Explorer (Windows):</p>
+            <ul>
+              <li>Right-click your Desktop (or wherever you want the project) → <strong>New Folder</strong> → name it <code>my-design-system</code></li>
+              <li>Open that folder, then create these sub-folders one by one: <code>tokens</code>, <code>scripts</code>, <code>figma-plugin</code></li>
+              <li>Inside <code>my-design-system</code>, create a folder called <code>src</code>, then inside <em>that</em> create <code>components</code></li>
+              <li>Create a folder called <code>.github</code> (note the dot at the start), then inside it create <code>workflows</code></li>
+            </ul>
+            <div class="callout tip">
+              <div class="callout-label">💡 Note</div>
+              <p>On Mac, folders starting with a dot (like <code>.github</code>) are hidden by default. Press <kbd>⌘ Shift .</kbd> in Finder to show hidden files.</p>
+            </div>
+          </div>
+
+          <p style="margin-top: 24px;"><strong>Part B — Install the tools</strong> (hand off to your developer)</p>
+          <div class="callout warn">
+            <div class="callout-label">🤝 Developer handoff</div>
+            <p>Share the folder you just created with your developer and ask them to run these two commands inside it. This installs all the software packages the automation needs. They only need to do this once.</p>
+          </div>
+          <div class="code-block">npm install @anthropic-ai/sdk style-dictionary ts-morph @octokit/rest @figma/plugin-typings
+npm install -D @storybook/addon-designs chromatic</div>
+
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-1-3">
+        <div class="guide-step-header" onclick="toggleStep('gs-1-3')">
+          <div class="guide-step-num pu">1.3</div>
+          <div class="guide-step-meta">
+            <h3>Save your secret keys</h3>
+            <p>Create a safe credentials file · Keep it off the internet</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>Think of this like a keychain — a single file that holds all the passwords and API keys the system needs to connect to Figma, Claude, and GitHub. You create this file once and it never leaves your computer.</p>
+
+          <p><strong>What each key does:</strong></p>
+          <ul>
+            <li><strong>FIGMA_TOKEN</strong> — your personal Figma password that lets the script read your design file (from Step 1.1)</li>
+            <li><strong>FIGMA_FILE_KEY</strong> — the ID of your specific Figma file (the string from the URL in Step 1.1)</li>
+            <li><strong>ANTHROPIC_API_KEY</strong> — your Claude API key, get it at console.anthropic.com</li>
+            <li><strong>GITHUB_TOKEN</strong> — lets the script open Pull Requests on your behalf</li>
+            <li><strong>CHROMATIC_PROJECT_TOKEN</strong> — connects Storybook to Chromatic for visual testing</li>
+          </ul>
+
+          <p><strong>How to create the file:</strong></p>
+          <ul>
+            <li>Inside your <code>my-design-system</code> folder, create a new text file and name it exactly <code>.env.local</code> (include the dot at the start)</li>
+            <li>Open it in any text editor (TextEdit on Mac, Notepad on Windows) and paste in this template, replacing the placeholder values with your real keys:</li>
+          </ul>
+
+          <div class="code-block"><span class="key">FIGMA_TOKEN</span>=<span class="str">paste-your-figma-token-here</span>
+<span class="key">FIGMA_FILE_KEY</span>=<span class="str">paste-your-file-key-here</span>
+<span class="key">ANTHROPIC_API_KEY</span>=<span class="str">paste-your-claude-key-here</span>
+<span class="key">GITHUB_TOKEN</span>=<span class="str">paste-your-github-token-here</span>
+<span class="key">CHROMATIC_PROJECT_TOKEN</span>=<span class="str">paste-your-chromatic-token-here</span></div>
+
+          <div class="callout warn">
+            <div class="callout-label">⚠ Important — keep this file private</div>
+            <p>Never share this file, email it, or upload it to GitHub. It contains private keys that give access to your accounts. Add <code>.env.local</code> to your <code>.gitignore</code> file so Git never picks it up. Ask your developer if you're unsure how to do this.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PHASE 2 ──────────────────────────────────────────────── -->
+    <div class="guide-section" id="phase-2">
+      <div class="phase-header">
+        <span class="phase-badge p2">Phase 2</span>
+        <span class="phase-title">Figma → Storybook</span>
+      </div>
+      <p class="phase-desc">This phase covers the main push: taking what you've designed in Figma and automatically turning it into working components in Storybook — with Claude doing the translation. Phases 2–4 involve code, so you'll be working alongside a developer. Your role is setting up Figma correctly; the scripts handle the rest.</p>
+
+      <div class="guide-step" id="gs-2-1">
+        <div class="guide-step-header" onclick="toggleStep('gs-2-1')">
+          <div class="guide-step-num fig">2.1</div>
+          <div class="guide-step-meta">
+            <h3>Export design tokens from Figma</h3>
+            <p>Pull your design tokens out of Figma so the code can use them</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p><strong>What "tokens" means here:</strong> design tokens are your design decisions turned into named values — things like "our primary blue is #0057FF" or "large spacing is 32px". Figma stores these in <strong>Variables</strong>. This step exports them so the code can use the exact same values.</p>
+
+          <p><strong>Your role (in Figma):</strong></p>
+          <ul>
+            <li>Make sure all your colors, spacing, and typography are defined as <strong>Variables</strong> in Figma (not just hardcoded values on shapes)</li>
+            <li>Publish your Figma file after making any token changes (File → Publish styles and variables)</li>
+          </ul>
+
+          <p><strong>What your developer does:</strong> they'll create a script that calls Figma's API to export those Variables as a JSON file, then run a tool called Style Dictionary to convert them into a format the code understands. The script looks like this — you don't need to understand it, just know your developer will put it in the <code>scripts/</code> folder:</p>
+          <div class="code-block"><span class="kw">const</span> response = <span class="kw">await</span> <span class="fn">fetch</span>(
+  <span class="str">`https://api.figma.com/v1/files/${<span class="key">FILE_KEY</span>}/variables/local`</span>,
+  { headers: { <span class="str">'X-Figma-Token'</span>: process.env.FIGMA_TOKEN } }
+);
+<span class="kw">const</span> { meta } = <span class="kw">await</span> response.<span class="fn">json</span>();
+<span class="fn">fs.writeFileSync</span>(<span class="str">'tokens/figma-raw.json'</span>, <span class="fn">JSON.stringify</span>(meta, null, 2));
+console.<span class="fn">log</span>(<span class="str">`Exported ${Object.keys(meta.variables).length} variables`</span>);</div>
+          <div class="callout tip">
+            <div class="callout-label">💡 When to re-run this</div>
+            <p>Any time you update a color, spacing value, or typography token in Figma, this export needs to re-run before components are re-generated. Your developer can set this up to run automatically every Monday, or you can trigger it manually after a big design change.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-2-2">
+        <div class="guide-step-header" onclick="toggleStep('gs-2-2')">
+          <div class="guide-step-num fig">2.2</div>
+          <div class="guide-step-meta">
+            <h3>Export your component details from Figma</h3>
+            <p>The script reads your components' names, variants, and visual properties</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>When you click a component in Figma, you can see its name, variants, colors, and spacing in the right panel. This step automates that — a script reads all of that information for every component at once, so Claude can use it to write accurate code.</p>
+
+          <p><strong>What the script reads for each component:</strong></p>
+          <ul>
+            <li><strong>Name</strong> — e.g. <code>Button/Primary/Default</code> (this becomes the file name in code)</li>
+            <li><strong>Variants</strong> — e.g. Default, Hover, Disabled (these become separate stories in Storybook)</li>
+            <li><strong>Description</strong> — the description you wrote in Figma appears as documentation in code</li>
+            <li><strong>Visual styles</strong> — exact color values, padding, font sizes, corner radius</li>
+          </ul>
+
+          <p><strong>Your role:</strong> make sure every component has a proper slash-style name and a clear description in Figma before running this step. The richer your Figma descriptions, the better Claude's generated code will be.</p>
+
+          <div class="callout tip">
+            <div class="callout-label">💡 Writing good component descriptions in Figma</div>
+            <p>Select a component in Figma → right panel → add a Description. Write it like you'd explain it to a developer: "Primary call-to-action button. Use for the most important action on a screen. Avoid using more than one per page." Claude will use this text as documentation.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-2-3">
+        <div class="guide-step-header" onclick="toggleStep('gs-2-3')">
+          <div class="guide-step-num cl">2.3</div>
+          <div class="guide-step-meta">
+            <h3>Claude generates the code</h3>
+            <p>Claude reads your Figma spec and writes the React component and Storybook story files</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>This is the core of the whole workflow. The script packages up everything from the previous two steps — your component's visual specs and your design tokens — and sends it to Claude, which writes the actual code.</p>
+
+          <p><strong>What Claude receives:</strong></p>
+          <ul>
+            <li>The component's name, variants, and visual properties from Figma</li>
+            <li>Your design token values (colors, spacing, etc.)</li>
+            <li>Instructions to follow your team's coding patterns</li>
+          </ul>
+
+          <p><strong>What Claude produces for each component:</strong></p>
+          <ul>
+            <li>A <strong>React component file</strong> (.tsx) — the working code version of your design</li>
+            <li>A <strong>Storybook story file</strong> (.stories.tsx) — shows all variants in Storybook</li>
+            <li>A <strong>types file</strong> (types.ts) — documents all the props the component accepts</li>
+          </ul>
+
+          <p>The script your developer writes will look like this — it sends your Figma data to Claude and saves the response as code files:</p>
+          <div class="code-block"><span class="kw">const</span> Anthropic = <span class="fn">require</span>(<span class="str">'@anthropic-ai/sdk'</span>);
+<span class="kw">const</span> client = <span class="kw">new</span> <span class="fn">Anthropic</span>();
+
+<span class="kw">async function</span> <span class="fn">generateComponent</span>(figmaSpec, tokens) {
+  <span class="kw">const</span> msg = <span class="kw">await</span> client.messages.<span class="fn">create</span>({
+    model: <span class="str">'claude-sonnet-4-20250514'</span>,
+    max_tokens: 4096,
+    system: <span class="str">`You are a design system engineer. Generate clean,
+      typed React components. Use CSS Modules for styling.
+      Follow the project conventions in the provided context.`</span>,
+    messages: [{
+      role: <span class="str">'user'</span>,
+      content: <span class="str">`Generate a React component for: ${figmaSpec.name}
+        Figma Spec: ${JSON.stringify(figmaSpec)}
+        Design Tokens: ${JSON.stringify(tokens)}
+        Output: 1) Component .tsx  2) Stories .stories.tsx  3) types.ts`</span>
+    }]
+  });
+  <span class="kw">return</span> msg.content[0].text;
+}</div>
+          <div class="callout info">
+            <div class="callout-label">◈ Improve Claude's output</div>
+            <p>Ask your developer to add 1–2 existing component files to the script's instructions. This shows Claude your team's coding style, so the generated code will match what you already have — less cleanup work for the developer reviewing the PR.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-2-4">
+        <div class="guide-step-header" onclick="toggleStep('gs-2-4')">
+          <div class="guide-step-num pu">2.4</div>
+          <div class="guide-step-meta">
+            <h3>Save the code and send it for review</h3>
+            <p>Generated files land in your repo · A Pull Request is opened automatically for the developer to review</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>After Claude generates the code, the script automatically saves all the files to the right folders and opens a <strong>Pull Request</strong> on GitHub.</p>
+
+          <p><strong>What a Pull Request (PR) is:</strong> think of it as a "suggestion box" in GitHub. Instead of the generated code going straight into the live codebase, it sits in a PR so a developer can review it, check it looks right, and approve it before it goes live. This is a safety net.</p>
+
+          <p><strong>What you'll see as a designer:</strong></p>
+          <ul>
+            <li>A new PR appears in your GitHub repository named something like <em>"feat(design-system): add Button from Figma"</em></li>
+            <li>The developer reviews it, makes any tweaks, then clicks <strong>Merge</strong></li>
+            <li>Once merged, the component appears in Storybook within minutes</li>
+          </ul>
+
+          <p>The script that does this automatically:</p>
+          <div class="code-block"><span class="kw">const</span> { Octokit } = <span class="fn">require</span>(<span class="str">'@octokit/rest'</span>);
+<span class="kw">const</span> octokit = <span class="kw">new</span> <span class="fn">Octokit</span>({ auth: process.env.GITHUB_TOKEN });
+
+<span class="comment">// Write files</span>
+<span class="fn">fs.mkdirSync</span>(<span class="str">`src/components/${name}`</span>, { recursive: <span class="kw">true</span> });
+<span class="fn">fs.writeFileSync</span>(<span class="str">`src/components/${name}/${name}.tsx`</span>, component);
+<span class="fn">fs.writeFileSync</span>(<span class="str">`src/components/${name}/${name}.stories.tsx`</span>, story);
+<span class="fn">fs.writeFileSync</span>(<span class="str">`src/components/${name}/types.ts`</span>, types);
+
+<span class="comment">// Create PR</span>
+<span class="kw">await</span> octokit.pulls.<span class="fn">create</span>({
+  owner, repo,
+  title: <span class="str">`feat(design-system): add ${name} from Figma`</span>,
+  head: <span class="str">`design-system/${name.toLowerCase()}`</span>,
+  base: <span class="str">'main'</span>,
+  body: <span class="str">`Auto-generated from Figma. Component: ${figmaSpec.key}`</span>
+});</div>
+          <div class="callout tip">
+            <div class="callout-label">💡 Designer tip</div>
+            <p>Once the PR is merged you can open Storybook and check that all your variants look exactly as designed. If something's off, note it and the developer can re-run the generator with an improved prompt.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PHASE 3 ──────────────────────────────────────────────── -->
+    <div class="guide-section" id="phase-3">
+      <div class="phase-header">
+        <span class="phase-badge p3">Phase 3</span>
+        <span class="phase-title">Storybook → Figma</span>
+      </div>
+      <p class="phase-desc">The reverse direction: when a developer updates a component in code — say they add a new variant or adjust spacing — those changes flow back into Figma automatically. You install a small plugin in Figma, and it updates your components for you whenever the developer merges new code.</p>
+
+      <div class="guide-step" id="gs-3-1">
+        <div class="guide-step-header" onclick="toggleStep('gs-3-1')">
+          <div class="guide-step-num sb">3.1</div>
+          <div class="guide-step-meta">
+            <h3>The system watches for code changes</h3>
+            <p>Every time a developer merges new code, the system automatically reads what changed</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>Your developer doesn't need to remember to trigger the sync. When they merge code changes to GitHub, this step runs automatically in the background. It reads the component files and creates a summary of what they contain — like taking a snapshot of the component's properties.</p>
+
+          <p><strong>As a designer, you don't do anything in this step.</strong> It's fully automatic. Here's what happens behind the scenes:</p>
+          <ul>
+            <li>A GitHub Action triggers as soon as code lands on the main branch</li>
+            <li>A script reads every component file and extracts its variants, props, and style values</li>
+            <li>It saves that summary as a small data file (<code>meta.json</code>) next to each component</li>
+            <li>This snapshot is then compared against the previous version to find what changed</li>
+          </ul>
+
+          <p>The script that creates these snapshots (your developer sets this up once):</p>
+          <div class="code-block"><span class="kw">const</span> { Project } = <span class="fn">require</span>(<span class="str">'ts-morph'</span>);
+<span class="kw">const</span> project = <span class="kw">new</span> <span class="fn">Project</span>();
+project.<span class="fn">addSourceFilesAtPaths</span>(<span class="str">'src/components/**/*.tsx'</span>);
+
+<span class="kw">for</span> (<span class="kw">const</span> file <span class="kw">of</span> project.<span class="fn">getSourceFiles</span>()) {
+  <span class="kw">const</span> props = file.<span class="fn">getInterfaces</span>().<span class="fn">map</span>(i => ({
+    name: i.<span class="fn">getName</span>(),
+    properties: i.<span class="fn">getProperties</span>().<span class="fn">map</span>(p => ({
+      name: p.<span class="fn">getName</span>(),
+      type: p.<span class="fn">getType</span>().<span class="fn">getText</span>()
+    }))
+  }));
+  <span class="fn">fs.writeFileSync</span>(
+    file.<span class="fn">getDirectoryPath</span>() + <span class="str">'/meta.json'</span>,
+    <span class="fn">JSON.stringify</span>(props, null, 2)
+  );
+}</div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-3-2">
+        <div class="guide-step-header" onclick="toggleStep('gs-3-2')">
+          <div class="guide-step-num cl">3.2</div>
+          <div class="guide-step-meta">
+            <h3>Claude figures out what changed</h3>
+            <p>Claude compares the old and new component, then produces a precise list of what to update in Figma</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>Once the system has a "before" and "after" snapshot of a component, it sends both to Claude and asks: <em>"What changed, and how should Figma be updated to match?"</em></p>
+
+          <p>Claude responds with a precise action list — not vague descriptions, but specific instructions like "rename this variant from 'large' to 'lg'" or "update this color token reference." This list is what the Figma plugin uses in the next step.</p>
+
+          <p><strong>Example of what Claude might return after a developer adds a new button size:</strong></p>
+          <div class="code-block"><span class="comment">// Claude's output: a list of actions to apply in Figma</span>
+{ <span class="str">"actions"</span>: [
+  { <span class="str">"type"</span>: <span class="str">"ADD_VARIANT"</span>, <span class="str">"componentSetId"</span>: <span class="str">"123"</span>, <span class="str">"name"</span>: <span class="str">"Size=XL"</span> },
+  { <span class="str">"type"</span>: <span class="str">"UPDATE_TOKEN"</span>, <span class="str">"nodeId"</span>: <span class="str">"456"</span>, <span class="str">"token"</span>: <span class="str">"spacing.500"</span> }
+]}</div>
+
+          <p>The prompt used to ask Claude (your developer configures this once):</p>
+          <div class="code-block"><span class="str">"Compare these two versions of a React component.
+Identify all changes that affect the visual design:
+- New or removed variant values (e.g. new 'size' prop values)
+- Renamed props that map to Figma variant properties
+- Updated design token references in styles
+- Structural changes (new slots, removed elements)
+
+Output JSON with this exact shape:
+{ \"actions\": [
+  { \"type\": \"UPDATE_VARIANT\", \"nodeId\": \"...\", \"newName\": \"...\" },
+  { \"type\": \"UPDATE_TOKEN\",   \"nodeId\": \"...\", \"token\":   \"...\" },
+  { \"type\": \"ADD_VARIANT\",    \"componentSetId\": \"...\", \"name\": \"...\" }
+] }"</span></div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-3-3">
+        <div class="guide-step-header" onclick="toggleStep('gs-3-3')">
+          <div class="guide-step-num fig">3.3</div>
+          <div class="guide-step-meta">
+            <h3>The Figma plugin applies updates to your file</h3>
+            <p>You run a small plugin inside Figma — it reads the pending changes and updates your components automatically</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>This is the step where you, as a designer, take action. Your developer builds a small Figma plugin (stored in the <code>figma-plugin/</code> folder you created). You install it once and then run it whenever the developer tells you new code has been merged.</p>
+
+          <p><strong>How to install the plugin (one-time setup):</strong></p>
+          <ul>
+            <li>In Figma, click the Figma logo (top left) → <strong>Plugins</strong> → <strong>Development</strong> → <strong>Import plugin from manifest</strong></li>
+            <li>Navigate to your <code>my-design-system/figma-plugin/</code> folder and select the <code>manifest.json</code> file</li>
+            <li>The plugin now appears in your Plugins menu as "Design System Sync"</li>
+          </ul>
+
+          <p><strong>How to run the sync:</strong></p>
+          <ul>
+            <li>After your developer says "I just merged some component changes", open Figma</li>
+            <li>Go to <strong>Plugins</strong> → <strong>Development</strong> → <strong>Design System Sync</strong></li>
+            <li>The plugin runs, applies all pending changes, and shows a confirmation: <em>"✓ Synced 3 updates from Storybook"</em></li>
+            <li>Check your components — any renamed variants, updated tokens, or new variants will be there</li>
+          </ul>
+
+          <p>The plugin code (written once by your developer):</p>
+          <div class="code-block"><span class="comment">// figma-plugin/code.ts</span>
+<span class="kw">async function</span> <span class="fn">applyPendingUpdates</span>() {
+  <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'https://your-sync.vercel.app/api/pending'</span>);
+  <span class="kw">const</span> { actions } = <span class="kw">await</span> res.<span class="fn">json</span>();
+
+  <span class="kw">for</span> (<span class="kw">const</span> action <span class="kw">of</span> actions) {
+    <span class="kw">if</span> (action.type === <span class="str">'UPDATE_VARIANT'</span>) {
+      <span class="kw">const</span> node = figma.<span class="fn">getNodeById</span>(action.nodeId);
+      <span class="kw">if</span> (node) node.name = action.newName;
+    }
+    <span class="kw">if</span> (action.type === <span class="str">'UPDATE_TOKEN'</span>) {
+      <span class="kw">await</span> <span class="fn">applyTokenBinding</span>(action.nodeId, action.token);
+    }
+  }
+  figma.<span class="fn">notify</span>(<span class="str">`✓ Synced ${actions.length} updates from Storybook`</span>);
+  <span class="kw">await</span> <span class="fn">markActionsComplete</span>(actions.<span class="fn">map</span>(a => a.id));
+}
+
+<span class="fn">applyPendingUpdates</span>(); <span class="comment">// runs automatically when you open the plugin</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PHASE 4 ──────────────────────────────────────────────── -->
+    <div class="guide-section" id="phase-4">
+      <div class="phase-header">
+        <span class="phase-badge p4">Phase 4</span>
+        <span class="phase-title">Automation with GitHub Actions</span>
+      </div>
+      <p class="phase-desc">GitHub Actions are like automatic assistants that live inside GitHub. Once set up by your developer, they watch for specific events — like a Figma file being published, or new code being merged — and run the sync scripts automatically. You don't need to understand the code; just know that after this phase, most of the sync happens without anyone pressing a button.</p>
+
+      <div class="guide-step" id="gs-4-1">
+        <div class="guide-step-header" onclick="toggleStep('gs-4-1')">
+          <div class="guide-step-num pu">4.1</div>
+          <div class="guide-step-meta">
+            <h3>Automation: Figma → Storybook</h3>
+            <p>Runs every Monday, or whenever you trigger it manually from GitHub</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>This workflow file tells GitHub: <em>"Every Monday morning, pull the latest tokens and components from Figma, send them to Claude, and open a PR with any new or updated components."</em></p>
+          <p>You can also trigger it manually at any time — useful after a big design sprint. Go to your GitHub repository → <strong>Actions</strong> tab → <strong>Figma to Storybook</strong> → <strong>Run workflow</strong>.</p>
+          <div class="code-block"><span class="key">name:</span> <span class="val">Figma to Storybook</span>
+<span class="key">on:</span>
+  <span class="key">workflow_dispatch:</span>           <span class="comment"># Manual trigger from GitHub UI</span>
+  <span class="key">schedule:</span>
+    - <span class="key">cron:</span> <span class="str">'0 9 * * 1'</span>        <span class="comment"># Every Monday 9am</span>
+
+<span class="key">jobs:</span>
+  <span class="key">sync:</span>
+    <span class="key">runs-on:</span> <span class="val">ubuntu-latest</span>
+    <span class="key">steps:</span>
+      - <span class="key">uses:</span> <span class="val">actions/checkout@v4</span>
+      - <span class="key">uses:</span> <span class="val">actions/setup-node@v4</span>
+        <span class="key">with:</span> { <span class="key">node-version:</span> <span class="str">'20'</span> }
+      - <span class="key">name:</span> <span class="val">Install</span>
+        <span class="key">run:</span> <span class="val">npm ci</span>
+      - <span class="key">name:</span> <span class="val">Export Figma tokens</span>
+        <span class="key">run:</span> <span class="val">node scripts/export-tokens.js</span>
+        <span class="key">env:</span>
+          <span class="key">FIGMA_TOKEN:</span> <span class="val">${{ secrets.FIGMA_TOKEN }}</span>
+          <span class="key">FIGMA_FILE_KEY:</span> <span class="val">${{ secrets.FIGMA_FILE_KEY }}</span>
+      - <span class="key">name:</span> <span class="val">Generate components with Claude</span>
+        <span class="key">run:</span> <span class="val">node scripts/generate-component.js</span>
+        <span class="key">env:</span>
+          <span class="key">ANTHROPIC_API_KEY:</span> <span class="val">${{ secrets.ANTHROPIC_API_KEY }}</span>
+      - <span class="key">name:</span> <span class="val">Open Pull Request</span>
+        <span class="key">run:</span> <span class="val">node scripts/create-pr.js</span>
+        <span class="key">env:</span>
+          <span class="key">GITHUB_TOKEN:</span> <span class="val">${{ secrets.GITHUB_TOKEN }}</span></div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-4-2">
+        <div class="guide-step-header" onclick="toggleStep('gs-4-2')">
+          <div class="guide-step-num pu">4.2</div>
+          <div class="guide-step-meta">
+            <h3>Automation: Storybook → Figma</h3>
+            <p>Runs automatically whenever a developer merges changes to a component file</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>This workflow fires automatically whenever a developer merges any change to a file inside <code>src/components/</code>. It runs the metadata extraction, sends it to Claude, and posts the resulting update list to your sync endpoint — ready for you to apply next time you run the Figma plugin.</p>
+          <div class="code-block"><span class="key">name:</span> <span class="val">Storybook to Figma</span>
+<span class="key">on:</span>
+  <span class="key">push:</span>
+    <span class="key">branches:</span> [<span class="str">main</span>]
+    <span class="key">paths:</span> [<span class="str">'src/components/**'</span>]
+
+<span class="key">jobs:</span>
+  <span class="key">sync:</span>
+    <span class="key">runs-on:</span> <span class="val">ubuntu-latest</span>
+    <span class="key">steps:</span>
+      - <span class="key">uses:</span> <span class="val">actions/checkout@v4</span>
+        <span class="key">with:</span> { <span class="key">fetch-depth:</span> <span class="val">2</span> } <span class="comment"># need previous commit for diff</span>
+      - <span class="key">name:</span> <span class="val">Extract metadata</span>
+        <span class="key">run:</span> <span class="val">node scripts/extract-metadata.js</span>
+      - <span class="key">name:</span> <span class="val">Generate Figma actions via Claude</span>
+        <span class="key">run:</span> <span class="val">node scripts/generate-figma-actions.js</span>
+        <span class="key">env:</span>
+          <span class="key">ANTHROPIC_API_KEY:</span> <span class="val">${{ secrets.ANTHROPIC_API_KEY }}</span>
+      - <span class="key">name:</span> <span class="val">Post actions to sync endpoint</span>
+        <span class="key">run:</span> <span class="val">node scripts/post-figma-actions.js</span>
+        <span class="key">env:</span>
+          <span class="key">SYNC_ENDPOINT_SECRET:</span> <span class="val">${{ secrets.SYNC_ENDPOINT_SECRET }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PHASE 5 ──────────────────────────────────────────────── -->
+    <div class="guide-section" id="phase-5">
+      <div class="phase-header">
+        <span class="phase-badge p5">Phase 5</span>
+        <span class="phase-title">Ongoing Maintenance</span>
+      </div>
+      <p class="phase-desc">Even with automation, Figma and Storybook can drift apart over time — especially after big design or code changes. These are the tools you and your developer use to catch and fix mismatches, and to handle the inevitable moment when you decide to rename your design tokens.</p>
+
+      <div class="guide-step" id="gs-5-1">
+        <div class="guide-step-header" onclick="toggleStep('gs-5-1')">
+          <div class="guide-step-num gr">5.1</div>
+          <div class="guide-step-meta">
+            <h3>Audit drift with Claude</h3>
+            <p>Find every mismatch between Figma and code on demand</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p><strong>"Drift"</strong> is when Figma and Storybook get out of sync — a developer changed a button's padding in code but the Figma component wasn't updated, for example. Over time, small drifts add up and the design file stops being a reliable reference.</p>
+
+          <p><strong>How to run an audit:</strong> ask your developer to run the audit script, or set it to run automatically once a month. Claude compares every Figma component against its code version and produces a report listing every mismatch.</p>
+
+          <p><strong>What the report tells you:</strong></p>
+          <ul>
+            <li><strong>Breaking</strong> — a variant exists in code but is missing from Figma entirely (or vice versa). Needs fixing immediately.</li>
+            <li><strong>Visual</strong> — a color, spacing, or font is different between Figma and code. Should be fixed soon.</li>
+            <li><strong>Minor</strong> — small inconsistency, low impact. Fix when convenient.</li>
+          </ul>
+
+          <p>The prompt used to ask Claude (your developer runs this):</p>
+          <div class="code-block"><span class="str">"Compare the Figma spec and the React component below.
+List every mismatch as JSON. For each include:
+- type: color | spacing | variant | typography | missing
+- figmaValue: what Figma has
+- codeValue: what the code has
+- severity: breaking | visual | minor
+- suggestedFix: one-sentence description of the fix"</span></div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-5-2">
+        <div class="guide-step-header" onclick="toggleStep('gs-5-2')">
+          <div class="guide-step-num gr">5.2</div>
+          <div class="guide-step-meta">
+            <h3>Token migration</h3>
+            <p>Update all components when Figma variable names change</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>At some point you'll want to rename your design tokens — maybe you're restructuring your color palette from generic names to semantic ones (e.g. <code>blue-500</code> → <code>color.brand.primary</code>). This is normally tedious because every component in code references the old name and needs to be updated.</p>
+
+          <p><strong>With Claude, this is painless:</strong></p>
+          <ul>
+            <li>Rename your Variables in Figma first (the design source of truth)</li>
+            <li>Re-export your tokens (Step 2.1)</li>
+            <li>Give your developer the list of old → new token name mappings</li>
+            <li>They run the migration prompt below — Claude updates every component file automatically</li>
+          </ul>
+
+          <p><strong>Example:</strong> you renamed your spacing tokens from t-shirt sizes to numbers:</p>
+          <div class="code-block"><span class="str">"Token names have changed. Migration map:
+{ \"spacing.sm\": \"spacing.200\",
+  \"spacing.md\": \"spacing.400\",
+  \"spacing.lg\": \"spacing.600\" }
+
+Update all token references in these component files.
+Return each file with only token references changed.
+Do NOT change any component logic or JSX structure."</span></div>
+          <div class="callout tip">
+            <div class="callout-label">💡 Tip</div>
+            <p>Always rename tokens in Figma <em>first</em>, then migrate the code. That way Figma stays the source of truth and the code catches up to it — not the other way around.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-step" id="gs-5-3">
+        <div class="guide-step-header" onclick="toggleStep('gs-5-3')">
+          <div class="guide-step-num gr">5.3</div>
+          <div class="guide-step-meta">
+            <h3>Team workflow — who does what</h3>
+            <p>A clear breakdown of designer vs. developer responsibilities at each stage</p>
+          </div>
+          <span class="guide-step-chevron">▼</span>
+        </div>
+        <div class="guide-step-body">
+          <p>Here's a clear breakdown of who does what — so there's no confusion when it's time to ship a new component or handle a design update.</p>
+          <table class="qref-table">
+            <thead><tr><th>Who</th><th>When</th><th>What to do</th></tr></thead>
+            <tbody>
+              <tr><td>Designer</td><td>After finishing a new component in Figma</td><td>Publish the Figma file → Go to GitHub → Actions → Run "Figma to Storybook" → Wait for the PR to appear → Share the PR link with your developer</td></tr>
+              <tr><td>Developer</td><td>After receiving the PR</td><td>Review the generated code → Approve and merge the PR → Tell the designer it's live in Storybook</td></tr>
+              <tr><td>Developer</td><td>After merging any component code changes</td><td>Tell the designer: "I just merged changes to Button — run the Figma plugin to sync"</td></tr>
+              <tr><td>Designer</td><td>After hearing from the developer</td><td>Open Figma → Plugins → Design System Sync → Run it → Check your components look right</td></tr>
+              <tr><td>Both</td><td>Once a month</td><td>Run the drift audit → Review the report together → Fix any breaking or visual mismatches</td></tr>
+              <tr><td>Both</td><td>When renaming tokens in Figma</td><td>Designer renames in Figma first → shares the old→new mapping → Developer runs the Claude migration prompt</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Reference -->
+    <div class="guide-section">
+      <div class="phase-header">
+        <span class="phase-badge p1">Reference</span>
+        <span class="phase-title">Quick Command Reference</span>
+      </div>
+      <table class="qref-table">
+        <thead><tr><th>Script / Command</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>node scripts/export-tokens.js</td><td>Pull Variables from Figma API → tokens/figma-raw.json</td></tr>
+          <tr><td>npx style-dictionary build</td><td>Transform tokens to CSS + JS + TypeScript</td></tr>
+          <tr><td>node scripts/generate-component.js</td><td>Send Figma spec to Claude → write component files</td></tr>
+          <tr><td>node scripts/extract-metadata.js</td><td>Parse component TypeScript → meta.json per component</td></tr>
+          <tr><td>node scripts/generate-figma-actions.js</td><td>Claude diffs metadata → Figma action list JSON</td></tr>
+          <tr><td>node scripts/post-figma-actions.js</td><td>Post actions to sync endpoint for Figma plugin</td></tr>
+          <tr><td>node scripts/run-audit.js</td><td>Detect all Figma ↔ code drift and report</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /view-guide -->
+
+</div><!-- /container -->
+
+<script>
+  // ── View switching ─────────────────────────────────────────────
+  function switchView(name, el) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.site-nav a').forEach(a => a.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    el.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Overview tabs ──────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+    document.getElementById(`panel-${name}`).classList.add('active');
+    document.querySelectorAll(`#panel-${name} .step, #panel-${name} .arch-card`).forEach((el, i) => {
+      el.style.animation = 'none';
+      el.offsetHeight;
+      el.style.animation = `slideIn 0.3s ease ${i * 0.07}s both`;
+    });
+  }
+
+  // ── Copy code ──────────────────────────────────────────────────
+  function copyCode(btn) {
+    const block = btn.parentElement;
+    const text = block.innerText.replace('COPY\n', '').trim();
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'COPIED';
+      setTimeout(() => btn.textContent = 'COPY', 1500);
+    });
+  }
+
+  // ── Accordion steps ────────────────────────────────────────────
+  const completedSteps = new Set();
+
+  function toggleStep(id) {
+    const el = document.getElementById(id);
+    const wasOpen = el.classList.contains('open');
+    el.classList.toggle('open');
+    if (!wasOpen && !completedSteps.has(id)) {
+      completedSteps.add(id);
+      updateProgress();
+    }
+  }
+
+  // ── Progress bar ───────────────────────────────────────────────
+  const PHASE_STEPS = {
+    1: ['gs-1-1','gs-1-2','gs-1-3'],
+    2: ['gs-2-1','gs-2-2','gs-2-3','gs-2-4'],
+    3: ['gs-3-1','gs-3-2','gs-3-3'],
+    4: ['gs-4-1','gs-4-2'],
+    5: ['gs-5-1','gs-5-2','gs-5-3']
+  };
+
+  function updateProgress() {
+    document.getElementById('progressCount').textContent = completedSteps.size;
+    for (let p = 1; p <= 5; p++) {
+      const done = PHASE_STEPS[p].every(s => completedSteps.has(s));
+      const bar = document.querySelector(`.progress-phase[data-phase="${p}"]`);
+      if (done) bar.classList.add('done');
+    }
+  }
+
+  function switchOS(btn, panelId) {
+    const stepBody = btn.closest('.guide-step-body');
+    stepBody.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
+    stepBody.querySelectorAll('.os-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(panelId).classList.add('active');
+  }
+
+  function scrollToPhase(n) {
+    const el = document.getElementById('phase-' + n);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+</script>
+</body>
+</html>
